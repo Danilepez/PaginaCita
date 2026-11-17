@@ -7,7 +7,7 @@ const CRIMSON = 0x8b0a1a;
 
 export async function sendPlan(plan: Plan): Promise<{ ok: boolean; error?: string }> {
   const url = process.env.DISCORD_WEBHOOK_URL;
-  if (!url) return { ok: false, error: "Falta DISCORD_WEBHOOK_URL en .env.local" };
+  if (!url) return { ok: false, error: "Falta configurar DISCORD_WEBHOOK_URL en las variables de entorno del servidor" };
 
   const raw = new Date(`${clean(plan.date)}T12:00:00Z`).toLocaleDateString("es-ES", {
     weekday: "long",
