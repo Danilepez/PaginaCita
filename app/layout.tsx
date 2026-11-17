@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces } from "next/font/google";
 import "./globals.css";
 
+//.
+
 const fraunces = Fraunces({
   subsets: ["latin"],
   style: ["normal", "italic"],
