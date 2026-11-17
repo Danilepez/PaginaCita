@@ -26,7 +26,6 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
-      # Push a main -> producción. Pull request -> preview.
       - name: Deploy (production)
         if: github.event_name == 'push'
         run: |

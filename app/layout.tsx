@@ -1,35 +1,24 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces } from "next/font/google";
+import { Sora } from "next/font/google";
 import "./globals.css";
 
-//.
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  style: ["normal", "italic"],
-  variable: "--font-fraunces",
-});
+const sora = Sora({ subsets: ["latin"], variable: "--font-sora" });
 
 export const metadata: Metadata = {
-  title: "Una pregunta importante",
-  description: "Tengo algo que preguntarte…",
+  title: "Nuestra próxima aventura",
+  description: "Planeemos algo juntos.",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#14040f",
+  themeColor: "#0a090c",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={fraunces.variable}>
-      <body
-        className="m-0 overflow-hidden"
-        style={{ background: "#14040f", fontFamily: "var(--font-fraunces), Georgia, serif" }}
-      >
-        {children}
-      </body>
+    <html lang="es" className={sora.variable}>
+      <body style={{ fontFamily: "var(--font-sora), system-ui, sans-serif" }}>{children}</body>
     </html>
   );
 }

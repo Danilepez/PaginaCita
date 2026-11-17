@@ -1,134 +1,122 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useRef, useState } from "react";
+import { useState, useTransition } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Heart } from "lucide-react";
+import Ask from "@/components/Ask";
+import { Success } from "@/components/Steps";
+import { PickStep, WhenStep } from "@/components/WizardSteps";
+import { ACTIVITIES, FOODS, type Option, type Plan } from "@/lib/data";
+import { sendPlan } from "./actions";
 
 // Three.js solo en cliente: evita errores de hidratación / SSR.
 const Scene3D = dynamic(() => import("@/components/Scene3D"), { ssr: false });
 
+const variants = {
+  initial: { opacity: 0, y: 24, filter: "blur(8px)" },
+  animate: { opacity: 1, y: 0, filter: "blur(0px)" },
+  exit: { opacity: 0, y: -16, filter: "blur(8px)" },
+};
+
 export default function Page() {
-  const [accepted, setAccepted] = useState(false);
-  const [noPos, setNoPos] = useState<{ x: number; y: number } | null>(null);
-  const noRef = useRef<HTMLButtonElement>(null);
+  const [step, setStep] = useState(0);
+  const [shown, setShown] = useState(0); // paso ya montado: decide el layout sin saltos
+  const [plan, setPlan] = useState<Plan>({ date: "", time: "", food: [], activity: [] });
+  const [foods, setFoods] = useState<Option[]>(FOODS);
+  const [acts, setActs] = useState<Option[]>(ACTIVITIES);
+  const [error, setError] = useState("");
+  const [pending, start] = useTransition();
 
-  // El botón "No" se teletransporta (ratón, táctil y clic).
-  const dodge = useCallback(() => {
-    const w = noRef.current?.offsetWidth ?? 120;
-    const h = noRef.current?.offsetHeight ?? 56;
-    const pad = 16;
-    setNoPos({
-      x: pad + Math.random() * Math.max(0, window.innerWidth - w - pad * 2),
-      y: pad + Math.random() * Math.max(0, window.innerHeight - h - pad * 2),
+  const toggle = (key: "food" | "activity", v: string) =>
+    setPlan((p) => ({ ...p, [key]: p[key].includes(v) ? p[key].filter((i) => i !== v) : [...p[key], v] }));
+
+  // Agrega una opción personalizada a la lista y la deja seleccionada.
+  const addOption = (key: "food" | "activity", o: Option) => {
+    const setList = key === "food" ? setFoods : setActs;
+    setList((l) => (l.some((x) => x.label.toLowerCase() === o.label.toLowerCase()) ? l : [...l, o]));
+    const v = `${o.emoji} ${o.label}`;
+    setPlan((p) => (p[key].includes(v) ? p : { ...p, [key]: [...p[key], v] }));
+  };
+
+  const confirm = () =>
+    start(async () => {
+      setError("");
+      const res = await sendPlan(plan);
+      if (res.ok) setStep(4);
+      else setError(res.error ?? "Algo salió mal. Inténtalo de nuevo.");
     });
-  }, []);
 
-  const sayYes = useCallback(async () => {
-    setAccepted(true);
-    const { default: confetti } = await import("canvas-confetti");
-    const colors = ["#ff2e88", "#ffb454", "#ffd9e6", "#8a5cff", "#ffffff"];
-    confetti({ particleCount: 160, spread: 100, origin: { y: 0.6 }, colors });
-    const end = Date.now() + 2500;
-    (function frame() {
-      confetti({ particleCount: 4, angle: 60, spread: 60, origin: { x: 0, y: 0.8 }, colors });
-      confetti({ particleCount: 4, angle: 120, spread: 60, origin: { x: 1, y: 0.8 }, colors });
-      if (Date.now() < end) requestAnimationFrame(frame);
-    })();
-  }, []);
+  const back = () => setStep((s) => s - 1);
+  const next = () => setStep((s) => s + 1);
+
+  const hero = step === 0 || step === 4; // el corazón 3D protagoniza estas pantallas
+  const heroLayout = shown === 0 || shown === 4;
 
   return (
-    <main className="relative h-dvh w-screen overflow-hidden">
+    <main
+      className={`relative flex min-h-dvh justify-center overflow-hidden px-4 ${
+        heroLayout ? "items-end pb-[7vh]" : "items-center py-10"
+      }`}
+    >
       <div className="absolute inset-0">
-        <Scene3D happy={accepted} />
+        <Scene3D hero={hero} happy={step === 4} />
       </div>
+      <div className="tech-grid pointer-events-none absolute inset-0 opacity-60" />
 
-      {/* Capa solo con opacidad: un transform aquí rompería el position:fixed del botón "No". */}
-      <AnimatePresence mode="wait">
-        {!accepted ? (
-          <motion.section
-            key="question"
-            className="pointer-events-none absolute inset-0 flex flex-col items-center justify-end px-5 pb-[12vh] text-center sm:justify-center sm:pb-0"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
+      <div
+        className={`relative w-full max-w-3xl ${
+          heroLayout
+            ? "p-2"
+            : "rounded-[28px] border border-white/10 bg-black/30 p-6 shadow-[0_30px_120px_-30px_rgba(255,75,75,0.3)] backdrop-blur-2xl sm:p-10"
+        }`}
+      >
+        <AnimatePresence mode="wait" onExitComplete={() => setShown(step)}>
+          <motion.div
+            key={step}
+            variants={variants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           >
-            <motion.p
-              className="mb-4 text-lg italic text-rose-200/80 sm:text-xl"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.9 }}
-            >
-              Tengo una pregunta muy importante para ti...
-            </motion.p>
-
-            <motion.h1
-              className="pointer-events-auto max-w-2xl rounded-3xl border border-white/15 bg-white/[0.06] px-6 py-6 text-3xl font-semibold leading-tight text-white shadow-[0_0_60px_-10px_rgba(255,46,136,0.55)] backdrop-blur-md sm:px-10 sm:py-8 sm:text-5xl"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.8, duration: 1 }}
-            >
-              ¿Quieres ir a una cita conmigo este fin de semana?
-            </motion.h1>
-
-            <motion.div
-              className="pointer-events-auto mt-8 flex items-center justify-center gap-5"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 2.8, duration: 0.8 }}
-            >
-              <motion.button
-                onClick={sayYes}
-                className="flex items-center gap-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 px-10 py-4 text-xl font-semibold text-white shadow-[0_0_40px_8px_rgba(255,46,136,0.55)] outline-none focus-visible:ring-4 focus-visible:ring-white/70 sm:px-14 sm:py-5 sm:text-2xl"
-                animate={{ scale: [1, 1.09, 1, 1.13, 1] }}
-                transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
-                whileHover={{ scale: 1.2 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Heart className="h-6 w-6 fill-white" /> Sí
-              </motion.button>
-
-              {noPos && <span aria-hidden className="inline-block h-14 w-24" />}
-              <button
-                ref={noRef}
-                onMouseEnter={dodge}
-                onPointerDown={dodge}
-                onClick={dodge}
-                style={noPos ? { position: "fixed", left: noPos.x, top: noPos.y } : undefined}
-                className="z-50 rounded-full border border-white/25 bg-white/10 px-8 py-4 text-lg text-white/80 backdrop-blur transition-[left,top] duration-200 sm:text-xl"
-              >
-                No
-              </button>
-            </motion.div>
-          </motion.section>
-        ) : (
-          <motion.section
-            key="success"
-            className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.3 }}
-          >
-            <motion.h2
-              className="text-4xl font-semibold italic text-white drop-shadow-[0_0_30px_rgba(255,180,84,0.8)] sm:text-6xl"
-              initial={{ scale: 0.6, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              transition={{ type: "spring", stiffness: 120, damping: 12, delay: 0.4 }}
-            >
-              ¡Sabía que dirías que sí! ❤️
-            </motion.h2>
-            <motion.p
-              className="mt-6 max-w-md rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-4 text-xl text-amber-100 backdrop-blur-md sm:text-2xl"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.3, duration: 0.9 }}
-            >
-              Ve preparando tu mejor outfit. Yo paso por ti.
-            </motion.p>
-          </motion.section>
-        )}
-      </AnimatePresence>
+            {step === 0 && <Ask onYes={next} />}
+            {step === 1 && (
+              <WhenStep plan={plan} onChange={(p) => setPlan((o) => ({ ...o, ...p }))} onBack={back} onNext={next} />
+            )}
+            {step === 2 && (
+              <PickStep
+                n={2}
+                title="¿Qué comeremos?"
+                hint="Elige las que quieras o agrega la tuya."
+                options={foods}
+                value={plan.food}
+                onToggle={(v) => toggle("food", v)}
+                onAdd={(o) => addOption("food", o)}
+                onBack={back}
+                onNext={next}
+                cta="Siguiente"
+              />
+            )}
+            {step === 3 && (
+              <PickStep
+                n={3}
+                title="¿Qué haremos?"
+                hint="Arma el plan a tu gusto, con tus propias ideas."
+                options={acts}
+                value={plan.activity}
+                onToggle={(v) => toggle("activity", v)}
+                onAdd={(o) => addOption("activity", o)}
+                onBack={back}
+                onNext={confirm}
+                cta="Confirmar plan"
+                loading={pending}
+                error={error}
+              />
+            )}
+            {step === 4 && <Success plan={plan} />}
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </main>
   );
 }
